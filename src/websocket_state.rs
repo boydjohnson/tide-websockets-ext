@@ -1,9 +1,9 @@
-#[cfg(feature = "async-std")]
 use async_lock::RwLock;
-use std::{sync::Arc, time::Duration, collections::BTreeMap};
-use tide_websockets::WebSocketConnection;
-#[cfg(feature = "tokio")]
-use tokio::sync::RwLock;
+use async_std::prelude::FutureExt;
+use futures::{stream::FuturesUnordered, StreamExt};
+use serde::Serialize;
+use std::{collections::BTreeMap, future::Future, sync::Arc, time::Duration};
+use tide_websockets::{Message, WebSocketConnection};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Ord, Eq)]
@@ -37,11 +37,84 @@ impl WebSocketState {
 
     pub async fn send_all_string(
         &self,
-        handle: &WebSocketHandle,
         msg: String,
         timeout: Duration,
-    ) -> crate::error::Result<()> {
+    ) -> Vec<crate::error::Result<()>> {
+        let func =
+            |conn: WebSocketConnection, msg: String| async move { conn.send_string(msg).await };
 
-        Ok(())
+        self.send_all(func, msg, timeout).await
+    }
+
+    pub async fn send_all_json<T: Serialize + Clone>(
+        &self,
+        msg: T,
+        timeout: Duration,
+    ) -> Vec<crate::error::Result<()>> {
+        let func = |conn: WebSocketConnection, msg: T| async move { conn.send_json(&msg).await };
+
+        self.send_all(func, msg, timeout).await
+    }
+
+    pub async fn send_all_msg(
+        &self,
+        msg: Message,
+        timeout: Duration,
+    ) -> Vec<crate::error::Result<()>> {
+        let func = |conn: WebSocketConnection, msg: Message| async move { conn.send(msg).await };
+
+        self.send_all(func, msg, timeout).await
+    }
+
+    pub async fn send_all_bytes(
+        &self,
+        bytes: Vec<u8>,
+        timeout: Duration,
+    ) -> Vec<crate::error::Result<()>> {
+        let func =
+            |conn: WebSocketConnection, item: Vec<u8>| async move { conn.send_bytes(item).await };
+
+        self.send_all(func, bytes, timeout).await
+    }
+
+    async fn send_all<
+        E,
+        K: Clone,
+        T: Future<Output = Result<(), E>>,
+        F: Fn(WebSocketConnection, K) -> T,
+    >(
+        &self,
+        func: F,
+        item: K,
+        timeout: Duration,
+    ) -> Vec<crate::error::Result<()>>
+    where
+        crate::error::WebSocketStateError: From<(E, WebSocketHandle)>,
+    {
+        self.0
+            .read()
+            .await
+            .iter()
+            .map(move |(handle, conn)| {
+                Self::send_with_timeout(func(conn.clone(), item.clone()), handle, timeout)
+            })
+            .collect::<FuturesUnordered<_>>()
+            .collect()
+            .await
+    }
+
+    async fn send_with_timeout<E, F: std::future::Future<Output = Result<(), E>>>(
+        fut: F,
+        handle: &WebSocketHandle,
+        timeout: Duration,
+    ) -> crate::error::Result<()>
+    where
+        crate::error::WebSocketStateError: From<(E, WebSocketHandle)>,
+    {
+        Ok(fut
+            .timeout(timeout)
+            .await
+            .map_err(|e| (e, handle.clone()))?
+            .map_err(|e| (e, handle.clone()))?)
     }
 }
