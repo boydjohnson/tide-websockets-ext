@@ -5,6 +5,7 @@ pub enum WebSocketStateError {
     Timeout(WebSocketHandle),
     WebSocketError(tide_websockets::Error, WebSocketHandle),
     HttpError(http_types::Error, WebSocketHandle),
+    NoSuchWebSocketClient(WebSocketHandle),
 }
 
 impl std::error::Error for WebSocketStateError {
@@ -13,6 +14,7 @@ impl std::error::Error for WebSocketStateError {
             Self::Timeout(_) => None,
             Self::WebSocketError(e, _) => Some(e),
             Self::HttpError(_, _) => None,
+            Self::NoSuchWebSocketClient(_) => None,
         }
     }
 }
@@ -23,6 +25,7 @@ impl std::fmt::Display for WebSocketStateError {
             Self::Timeout(h) => write!(f, "Timeout {}", h),
             Self::WebSocketError(e, h) => write!(f, "{}: websocket client {}", e, h),
             Self::HttpError(e, h) => write!(f, "{}: websocket client {}", e, h),
+            Self::NoSuchWebSocketClient(h) => write!(f, "No such websocket handle: {}", h),
         }
     }
 }

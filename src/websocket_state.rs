@@ -41,6 +41,70 @@ impl WebSocketState {
         handle
     }
 
+    pub async fn delete(&self, handle: &WebSocketHandle) -> Option<WebSocketConnection> {
+        self.0.write().await.remove(handle)
+    }
+
+    pub async fn send_string(
+        &self,
+        msg: String,
+        handle: &WebSocketHandle,
+        timeout: Duration,
+    ) -> crate::error::Result<()> {
+        if let Some(conn) = self.0.read().await.get(handle) {
+            Self::send_with_timeout(conn.send_string(msg), handle, timeout).await
+        } else {
+            Err(crate::error::WebSocketStateError::NoSuchWebSocketClient(
+                handle.clone(),
+            ))
+        }
+    }
+
+    pub async fn send_json<T: Serialize>(
+        &self,
+        msg: &T,
+        handle: &WebSocketHandle,
+        timeout: Duration,
+    ) -> crate::error::Result<()> {
+        if let Some(conn) = self.0.read().await.get(handle) {
+            Self::send_with_timeout(conn.send_json(msg), handle, timeout).await
+        } else {
+            Err(crate::error::WebSocketStateError::NoSuchWebSocketClient(
+                handle.clone(),
+            ))
+        }
+    }
+
+    pub async fn send_bytes(
+        &self,
+        bytes: Vec<u8>,
+        handle: &WebSocketHandle,
+        timeout: Duration,
+    ) -> crate::error::Result<()> {
+        if let Some(conn) = self.0.read().await.get(handle) {
+            Self::send_with_timeout(conn.send_bytes(bytes), handle, timeout).await
+        } else {
+            Err(crate::error::WebSocketStateError::NoSuchWebSocketClient(
+                handle.clone(),
+            ))
+        }
+    }
+
+    pub async fn send(
+        &self,
+        msg: Message,
+        handle: &WebSocketHandle,
+        timeout: Duration,
+    ) -> crate::error::Result<()> {
+        if let Some(conn) = self.0.read().await.get(handle) {
+            Self::send_with_timeout(conn.send(msg), handle, timeout).await
+        } else {
+            Err(crate::error::WebSocketStateError::NoSuchWebSocketClient(
+                handle.clone(),
+            ))
+        }
+    }
+
     pub async fn send_all_string(
         &self,
         msg: String,
