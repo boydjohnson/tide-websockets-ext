@@ -8,14 +8,22 @@ pub enum WebSocketStateError {
 }
 
 impl std::error::Error for WebSocketStateError {
-    fn description(&self) -> &str {
-        todo!();
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Timeout(_) => None,
+            Self::WebSocketError(e, _) => Some(e),
+            Self::HttpError(_, _) => None,
+        }
     }
 }
 
 impl std::fmt::Display for WebSocketStateError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        match self {
+            Self::Timeout(h) => write!(f, "Timeout {}", h),
+            Self::WebSocketError(e, h) => write!(f, "{}: websocket client {}", e, h),
+            Self::HttpError(e, h) => write!(f, "{}: websocket client {}", e, h),
+        }
     }
 }
 

@@ -2,12 +2,18 @@ use async_lock::RwLock;
 use async_std::prelude::FutureExt;
 use futures::{stream::FuturesUnordered, StreamExt};
 use serde::Serialize;
-use std::{collections::BTreeMap, future::Future, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, fmt::Display, future::Future, sync::Arc, time::Duration};
 use tide_websockets::{Message, WebSocketConnection};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Ord, Eq)]
 pub struct WebSocketHandle(String);
+
+impl Display for WebSocketHandle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 impl WebSocketHandle {
     fn random() -> Self {
