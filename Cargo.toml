@@ -1,18 +1,18 @@
 [package]
 name = "tide-websockets-ext"
-version = "0.4.0"
+version = "0.1.0"
 edition = "2018"
 
 
 [dependencies]
+async-std = "1.9"
+dashmap = "4.0"
 http-types = "2.11"
 futures = "0.3"
 serde = "1.0"
 tide-websockets = "0.4"
 uuid = { version = "0.8", features = ["v4"] }
 
-async-lock = "2.3"
-async-std = "1.9"
 
 [dev-dependencies]
 tide = "0.16"

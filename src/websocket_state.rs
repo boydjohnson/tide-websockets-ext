@@ -1,12 +1,12 @@
-use async_lock::RwLock;
 use async_std::prelude::FutureExt;
+use dashmap::DashMap;
 use futures::{stream::FuturesUnordered, StreamExt};
 use serde::Serialize;
-use std::{collections::BTreeMap, fmt::Display, future::Future, sync::Arc, time::Duration};
+use std::{fmt::Display, future::Future, sync::Arc, time::Duration};
 use tide_websockets::{Message, WebSocketConnection};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Ord, Eq)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Ord, Eq, Hash)]
 pub struct WebSocketHandle(String);
 
 impl Display for WebSocketHandle {
@@ -22,11 +22,11 @@ impl WebSocketHandle {
 }
 
 #[derive(Debug, Clone)]
-pub struct WebSocketState(Arc<RwLock<BTreeMap<WebSocketHandle, WebSocketConnection>>>);
+pub struct WebSocketState(Arc<DashMap<WebSocketHandle, WebSocketConnection>>);
 
 impl Default for WebSocketState {
     fn default() -> Self {
-        WebSocketState(Arc::new(RwLock::new(BTreeMap::default())))
+        WebSocketState(Arc::new(DashMap::default()))
     }
 }
 
@@ -37,21 +37,21 @@ impl WebSocketState {
 
     pub async fn insert(&self, conn: &WebSocketConnection) -> WebSocketHandle {
         let handle = WebSocketHandle::random();
-        self.0.write().await.insert(handle.clone(), conn.clone());
+        self.0.insert(handle.clone(), conn.clone());
         handle
     }
 
     pub async fn delete(&self, handle: &WebSocketHandle) -> Option<WebSocketConnection> {
-        self.0.write().await.remove(handle)
+        self.0.remove(handle).map(|(_, v)| v)
     }
 
     pub async fn send_string(
         &self,
         msg: String,
-        handle: &WebSocketHandle,
+        handle: WebSocketHandle,
         timeout: Duration,
     ) -> crate::error::Result<()> {
-        if let Some(conn) = self.0.read().await.get(handle) {
+        if let Some(conn) = self.0.get(&handle) {
             Self::send_with_timeout(conn.send_string(msg), handle, timeout).await
         } else {
             Err(crate::error::WebSocketStateError::NoSuchWebSocketClient(
@@ -63,10 +63,10 @@ impl WebSocketState {
     pub async fn send_json<T: Serialize>(
         &self,
         msg: &T,
-        handle: &WebSocketHandle,
+        handle: WebSocketHandle,
         timeout: Duration,
     ) -> crate::error::Result<()> {
-        if let Some(conn) = self.0.read().await.get(handle) {
+        if let Some(conn) = self.0.get(&handle) {
             Self::send_with_timeout(conn.send_json(msg), handle, timeout).await
         } else {
             Err(crate::error::WebSocketStateError::NoSuchWebSocketClient(
@@ -78,10 +78,10 @@ impl WebSocketState {
     pub async fn send_bytes(
         &self,
         bytes: Vec<u8>,
-        handle: &WebSocketHandle,
+        handle: WebSocketHandle,
         timeout: Duration,
     ) -> crate::error::Result<()> {
-        if let Some(conn) = self.0.read().await.get(handle) {
+        if let Some(conn) = self.0.get(&handle) {
             Self::send_with_timeout(conn.send_bytes(bytes), handle, timeout).await
         } else {
             Err(crate::error::WebSocketStateError::NoSuchWebSocketClient(
@@ -93,10 +93,10 @@ impl WebSocketState {
     pub async fn send(
         &self,
         msg: Message,
-        handle: &WebSocketHandle,
+        handle: WebSocketHandle,
         timeout: Duration,
     ) -> crate::error::Result<()> {
-        if let Some(conn) = self.0.read().await.get(handle) {
+        if let Some(conn) = self.0.get(&handle) {
             Self::send_with_timeout(conn.send(msg), handle, timeout).await
         } else {
             Err(crate::error::WebSocketStateError::NoSuchWebSocketClient(
@@ -162,11 +162,10 @@ impl WebSocketState {
         crate::error::WebSocketStateError: From<(E, WebSocketHandle)>,
     {
         self.0
-            .read()
-            .await
             .iter()
-            .map(move |(handle, conn)| {
-                Self::send_with_timeout(func(conn.clone(), item.clone()), handle, timeout)
+            .map(move |ref_multi| {
+                let (handle, conn) = ref_multi.pair();
+                Self::send_with_timeout(func(conn.clone(), item.clone()), handle.clone(), timeout)
             })
             .collect::<FuturesUnordered<_>>()
             .collect()
@@ -175,7 +174,7 @@ impl WebSocketState {
 
     async fn send_with_timeout<E, F: std::future::Future<Output = Result<(), E>>>(
         fut: F,
-        handle: &WebSocketHandle,
+        handle: WebSocketHandle,
         timeout: Duration,
     ) -> crate::error::Result<()>
     where
