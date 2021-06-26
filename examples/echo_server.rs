@@ -6,6 +6,8 @@ use tide_websockets_ext::websocket_state::WebSocketState;
 
 #[async_std::main]
 async fn main() -> Result<(), std::io::Error> {
+    tide::log::with_level(tide::log::LevelFilter::Debug);
+
     let state = WebSocketState::default();
 
     let mut app = tide::with_state(state);
