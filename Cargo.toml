@@ -2,7 +2,15 @@
 name = "tide-websockets-ext"
 version = "0.1.0"
 edition = "2018"
-
+license = "Apache 2.0 or MIT"
+authors = [
+    "Boyd Johnson johnson.boyd@gmail.com"
+]
+readme = "README.md"
+description = "Websockets state for saving tide-websockets WebsocketConnections"
+keywords = ["tide", "websockets"]
+categories = ["web-programming::http-server", "web-programming"]
+repository = "https://github.com/boydjohnson/tide-websockets-ext"
 
 [dependencies]
 async-std = "1.9"
