@@ -1,10 +1,17 @@
+//! WebSocketState error type
+
 use crate::websocket_state::WebSocketHandle;
 
+/// WebSocketState error type
 #[derive(Debug)]
 pub enum WebSocketStateError {
+    /// Timeout
     Timeout(WebSocketHandle),
+    /// WebSocketError
     WebSocketError(tide_websockets::Error, WebSocketHandle),
+    /// HttpError
     HttpError(http_types::Error, WebSocketHandle),
+    /// State does not contain that `WebSocketConnection`
     NoSuchWebSocketClient(WebSocketHandle),
 }
 
@@ -30,6 +37,7 @@ impl std::fmt::Display for WebSocketStateError {
     }
 }
 
+/// WebSocketState Result type
 pub type Result<T> = std::result::Result<T, WebSocketStateError>;
 
 impl From<(tide_websockets::Error, WebSocketHandle)> for WebSocketStateError {

@@ -1,3 +1,5 @@
+//! WebSocketState and WebSocketHandle
+
 use async_std::prelude::FutureExt;
 use dashmap::DashMap;
 use futures::{stream::FuturesUnordered, StreamExt};
@@ -6,6 +8,7 @@ use std::{fmt::Display, future::Future, sync::Arc, time::Duration};
 use tide_websockets::{Message, WebSocketConnection};
 use uuid::Uuid;
 
+/// WebSocketHandle How to refer externally to a particular client
 #[derive(Debug, Clone, PartialEq, PartialOrd, Ord, Eq, Hash)]
 pub struct WebSocketHandle(String);
 
@@ -21,6 +24,7 @@ impl WebSocketHandle {
     }
 }
 
+/// WebSocketState
 #[derive(Debug, Clone)]
 pub struct WebSocketState(Arc<DashMap<WebSocketHandle, WebSocketConnection>>);
 
@@ -31,20 +35,24 @@ impl Default for WebSocketState {
 }
 
 impl WebSocketState {
+    /// ::new() or use ::default()
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Insert a `WebSocketConnection`
     pub async fn insert(&self, conn: &WebSocketConnection) -> WebSocketHandle {
         let handle = WebSocketHandle::random();
         self.0.insert(handle.clone(), conn.clone());
         handle
     }
 
+    /// Remove a `WebSocketConnection`
     pub async fn delete(&self, handle: &WebSocketHandle) -> Option<WebSocketConnection> {
         self.0.remove(handle).map(|(_, v)| v)
     }
 
+    /// Send a `String` to a particular client
     pub async fn send_string(
         &self,
         msg: String,
@@ -60,6 +68,7 @@ impl WebSocketState {
         }
     }
 
+    /// Send a type with T: Serialize as json
     pub async fn send_json<T: Serialize>(
         &self,
         msg: &T,
@@ -75,6 +84,7 @@ impl WebSocketState {
         }
     }
 
+    /// Send bytes
     pub async fn send_bytes(
         &self,
         bytes: Vec<u8>,
@@ -90,6 +100,7 @@ impl WebSocketState {
         }
     }
 
+    /// Send a websockets `Message`.
     pub async fn send(
         &self,
         msg: Message,
@@ -105,6 +116,7 @@ impl WebSocketState {
         }
     }
 
+    /// Send every client a `String`.
     pub async fn send_all_string(
         &self,
         msg: String,
@@ -116,6 +128,7 @@ impl WebSocketState {
         self.send_all(func, msg, timeout).await
     }
 
+    /// Send every client a T: Serialize as JSON.
     pub async fn send_all_json<T: Serialize + Clone>(
         &self,
         msg: T,
@@ -126,6 +139,7 @@ impl WebSocketState {
         self.send_all(func, msg, timeout).await
     }
 
+    /// Send every client a `Message`.
     pub async fn send_all_msg(
         &self,
         msg: Message,
@@ -136,6 +150,7 @@ impl WebSocketState {
         self.send_all(func, msg, timeout).await
     }
 
+    /// Send every client bytes.
     pub async fn send_all_bytes(
         &self,
         bytes: Vec<u8>,
